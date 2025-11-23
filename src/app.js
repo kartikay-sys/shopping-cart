@@ -11,95 +11,62 @@ function App() {
   const [items, setItems] = useState([]);
   const [cartId, setCartId] = useState(null);
 
-  const API = "https://shopping-cart-backend-production.up.railway.app";
-
-  // when user returns with a saved token
-  useEffect(() => {
-    const t = localStorage.getItem("token");
-    const u = localStorage.getItem("userId");
-    if (t && u) {
-      setToken(t);
-      setUserId(parseInt(u));
-      setScreen("items");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (screen === "items" && token) {
-      loadItems();
-      loadCart();
-    }
-  }, [screen, token]);
+  // Change this to your backend URL after hosting
+  const API = "http://localhost:8080";
 
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!username || !password) {
-      window.alert("Please enter username/password");
+      window.alert("Invalid username/password");
       return;
     }
 
     try {
-      const r = await fetch(API + "/users/login", {
+      const res = await fetch(API + "/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
 
-      if (!r.ok) {
+      if (!res.ok) {
         window.alert("Invalid username/password");
         return;
       }
 
-      const data = await r.json();
-      if (data && data.token) {
-        setToken(data.token);
-        setUserId(data.user_id);
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.user_id);
-        setScreen("items");
-      } else {
-        window.alert("Invalid username/password");
-      }
+      const data = await res.json();
+      setToken(data.token);
+      setUserId(data.user_id);
+
+      setScreen("items");
+      loadItems(data.token);
+      loadCart(data.token, data.user_id);
     } catch (err) {
-      console.log("login err:", err);
-      window.alert("Something went wrong");
+      console.log(err);
+      window.alert("Invalid username/password");
     }
   };
 
-  const loadItems = async () => {
+  const loadItems = async (t = token) => {
     try {
       const r = await fetch(API + "/items");
-      if (!r.ok) return;
       const d = await r.json();
       setItems(d || []);
-    } catch (e) {
-      console.log(e);
-    }
+    } catch {}
   };
 
-  const loadCart = async () => {
+  const loadCart = async (t = token, uid = userId) => {
     try {
       const r = await fetch(API + "/carts", {
-        headers: { Authorization: "Bearer " + token }
+        headers: { Authorization: "Bearer " + t }
       });
-      if (!r.ok) return;
+      const data = await r.json();
 
-      const d = await r.json();
-      if (Array.isArray(d)) {
-        let c = d.find((c) => c.user_id === userId);
-        if (c) setCartId(c.id);
-      }
-    } catch (e) {
-      console.log(e);
-    }
+      const mine = data.find((c) => c.user_id === uid);
+      if (mine) setCartId(mine.id);
+    } catch {}
   };
 
   const addToCart = async (itemId) => {
-    if (!token) {
-      window.alert("Login required");
-      return;
-    }
-
     try {
       const r = await fetch(API + "/carts", {
         method: "POST",
@@ -111,69 +78,59 @@ function App() {
       });
 
       if (!r.ok) {
-        window.alert("Couldn't add item");
+        window.alert("Failed to add item");
         return;
       }
 
-      const d = await r.json();
-      if (d && d.id) setCartId(d.id);
-
-      window.alert("Item added to cart");
-    } catch (e) {
-      console.log(e);
-      window.alert("Error adding item");
+      const data = await r.json();
+      setCartId(data.id);
+      window.alert("Item added");
+    } catch (err) {
+      console.log(err);
     }
   };
 
   const showCart = async () => {
-    if (!token) return;
-
     try {
       const r = await fetch(API + "/carts", {
         headers: { Authorization: "Bearer " + token }
       });
 
-      const d = await r.json();
-      const mycart = d.find((c) => c.user_id === userId);
+      const data = await r.json();
+      const mine = data.find((c) => c.user_id === userId);
 
-      if (!mycart || !mycart.items || mycart.items.length === 0) {
-        window.alert("Cart empty");
+      if (!mine || !mine.items || mine.items.length === 0) {
+        window.alert("Cart is empty");
         return;
       }
 
       let msg = "";
-      mycart.items.forEach((x) => {
-        msg += `cart_id=${x.cart_id}, item_id=${x.item_id}\n`;
+      mine.items.forEach((i) => {
+        msg += `cart_id=${i.cart_id}, item_id=${i.item_id}\n`;
       });
 
       window.alert(msg);
-    } catch (e) {
-      console.log(e);
-    }
+    } catch {}
   };
 
   const showOrders = async () => {
-    if (!token) return;
-
     try {
       const r = await fetch(API + "/orders", {
         headers: { Authorization: "Bearer " + token }
       });
 
-      const d = await r.json();
-      const myorders = d.filter((o) => o.user_id === userId);
+      const data = await r.json();
+      const myOrders = data.filter((o) => o.user_id === userId);
 
-      if (myorders.length === 0) {
-        window.alert("No orders");
+      if (myOrders.length === 0) {
+        window.alert("No orders placed");
         return;
       }
 
       let msg = "";
-      myorders.forEach((o) => (msg += `Order ID: ${o.id}\n`));
+      myOrders.forEach((o) => (msg += `Order ID: ${o.id}\n`));
       window.alert(msg);
-    } catch (e) {
-      console.log(e);
-    }
+    } catch {}
   };
 
   const checkout = async () => {
@@ -193,42 +150,35 @@ function App() {
       });
 
       if (!r.ok) {
-        window.alert("Failed");
+        window.alert("Failed to checkout");
         return;
       }
 
       window.alert("Order successful");
-
-      // reset cart
-      setCartId(null);
       loadItems();
-    } catch (e) {
-      console.log(e);
-    }
+      loadCart();
+    } catch {}
   };
-
-  // UI SCREENS -----------------------------------------------------
 
   if (screen === "login") {
     return (
       <div style={{ padding: 30 }}>
         <h2>Login</h2>
         <form onSubmit={handleLogin}>
-          <div>
-            <input
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <input
-              placeholder="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+          <input
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <br />
+          <input
+            placeholder="Password"
+            type="password"
+            style={{ marginTop: 10 }}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <br />
           <button style={{ marginTop: 15 }}>Login</button>
         </form>
       </div>
@@ -249,19 +199,12 @@ function App() {
 
       <h2>Items</h2>
 
-      {items.length === 0 && <div>No items</div>}
-
       <ul>
         {items.map((it) => (
           <li
             key={it.id}
             onClick={() => addToCart(it.id)}
-            style={{
-              cursor: "pointer",
-              padding: "8px 0",
-              borderBottom: "1px solid #ddd",
-              width: 200
-            }}
+            style={{ cursor: "pointer", borderBottom: "1px solid #ddd", width: 200, padding: "5px 0" }}
           >
             {it.name}
           </li>
