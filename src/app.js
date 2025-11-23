@@ -11,7 +11,7 @@ function App() {
   const [items, setItems] = useState([]);
   const [cartId, setCartId] = useState(null);
 
-  const API = "http://localhost:8080";
+  const API = "https://shopping-cart-backend-production.up.railway.app";
 
   // when user returns with a saved token
   useEffect(() => {
